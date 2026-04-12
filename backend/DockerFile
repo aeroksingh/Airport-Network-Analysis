@@ -1,0 +1,39 @@
+# ── Stage: Production ─────────────────────────────────────
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy package files first (layer caching)
+COPY package*.json ./
+
+# Install production dependencies only
+RUN npm ci --omit=dev
+
+# Copy source code (.dockerignore excludes .env, node_modules, logs/)
+COPY . .
+
+# Create logs directory (volume will be mounted here)
+RUN mkdir -p logs && chown -R node:node logs
+
+# Install netcat for a simple wait-for-Mongo check
+RUN apk add --no-cache netcat-openbsd
+
+# Create a small wait-for-mongo helper (uses MONGO_HOST/MONGO_PORT env vars)
+RUN printf '%s\n' '#!/bin/sh' \
+	'MONGO_HOST=${MONGO_HOST:-192.168.10.10}' \
+	'MONGO_PORT=${MONGO_PORT:-27017}' \
+	'echo "Waiting for MongoDB at ${MONGO_HOST}:${MONGO_PORT}..."' \
+	'while ! nc -z "$MONGO_HOST" "$MONGO_PORT"; do sleep 1; done' \
+	'echo "MongoDB reachable at ${MONGO_HOST}:${MONGO_PORT}"' \
+	'exec "$@"' \
+	> /usr/local/bin/wait-for-mongo.sh && chmod +x /usr/local/bin/wait-for-mongo.sh
+
+# Expose backend port
+EXPOSE 5000
+
+# Run as unprivileged user
+USER node
+
+# Ensure we wait for Mongo before starting the app
+ENTRYPOINT ["/usr/local/bin/wait-for-mongo.sh"]
+CMD ["node", "server.js"]

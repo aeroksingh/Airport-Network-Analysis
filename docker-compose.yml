@@ -1,0 +1,95 @@
+# AIR TOWER — Docker Network Topology
+# Three segmented subnets mirroring real network architecture:
+#   192.168.10.0/24  — core_network  (MongoDB + Backend API)
+#   192.168.20.0/24  — client_mesh   (Frontend nodes)
+#   192.168.30.0/24  — admin_plane   (Backend + Frontend admin interfaces)
+
+services:
+  mongo:
+    image: mongo:6.0
+    container_name: airtower_mongo
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      core_network:
+        ipv4_address: 192.168.10.10
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: DockerFile
+    container_name: airtower_backend
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - MONGO_URI=mongodb://192.168.10.10:27017/airtowerdb
+      - MONGO_HOST=192.168.10.10
+      - MONGO_PORT=27017
+      - JWT_SECRET=airtower_super_secret_jwt_key_2024
+      - NODE_ENV=production
+    depends_on:
+      mongo:
+        condition: service_healthy
+    volumes:
+      - backend_logs:/app/logs
+      - uploads_vol:/app/uploads
+    networks:
+      core_network:
+        ipv4_address: 192.168.10.20
+      admin_plane:
+        ipv4_address: 192.168.30.10
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: DockerFile
+    container_name: airtower_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      client_mesh:
+        ipv4_address: 192.168.20.10
+      admin_plane:
+        ipv4_address: 192.168.30.20
+
+volumes:
+  mongo_data:
+    driver: local
+  backend_logs:
+    driver: local
+  uploads_vol:
+    driver: local
+
+networks:
+  core_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.10.0/24
+          gateway: 192.168.10.1
+
+  client_mesh:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.20.0/24
+          gateway: 192.168.20.1
+
+  admin_plane:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.30.0/24
+          gateway: 192.168.30.1
