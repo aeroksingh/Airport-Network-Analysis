@@ -42,3 +42,33 @@ module.exports = function transportLayerLogger(req, res, next) {
 
   next();
 };
+
+const fs = require('fs');
+const path = require('path');
+
+/**
+ * Logs transport layer details to a local file for monitoring.
+ */
+const transportLayerLogger = (req, res, next) => {
+    const logDetails = {
+        timestamp: new Date().toISOString(),
+        clientIP: req.clientIP, // Uses the IP from your middleware
+        method: req.method,
+        url: req.url,
+        protocol: req.protocol,
+        // Tracking TCP-level ports
+        destPort: req.socket.localPort,
+        srcPort: req.socket.remotePort
+    };
+
+    const logMessage = `[${logDetails.timestamp}] IP: ${logDetails.clientIP} | Port: ${logDetails.srcPort}->${logDetails.destPort} | ${logDetails.method} ${logDetails.url}\n`;
+
+    // Append to a log file so you can see the history
+    const logFilePath = path.join(__dirname, 'network_monitor.log');
+    
+    fs.appendFile(logFilePath, logMessage, (err) => {
+        if (err) console.error("Logging failed", err);
+    });
+
+    next();
+};
