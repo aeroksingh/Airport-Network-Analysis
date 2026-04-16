@@ -101,3 +101,8 @@ ws://localhost:5000      ───►  ws://localhost:5000/ws/tower
 **Port already in use** — Run `taskkill /F /IM node.exe` (Windows) or `pkill -f node` (Mac/Linux), then restart.
 
 **MongoDB not connecting** — Ensure MongoDB is running: `net start MongoDB` (Windows) or `mongod` (Mac/Linux).
+
+## Technical Implementation (In Progress)
+- [x] Initialized Transport Layer Logging architecture
+- [ ] TCP Connection tracking (Source/Destination ports)
+- [ ] IP Tracking and Network Rules configuration
